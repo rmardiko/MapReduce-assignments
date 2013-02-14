@@ -1,6 +1,9 @@
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -43,7 +46,10 @@ public class PairsPMI extends Configured implements Tool {
     public void map(LongWritable key, Text value, Context context)
         throws IOException, InterruptedException {
       String line = ((Text) value).toString();
-      String[] tokens = line.split("\\s+");
+      
+      Set<String> words = new HashSet<String>();
+      Collections.addAll(words, line.split("\\s+"));
+      String[] tokens = words.toArray(new String[0]);
       
       for (int ii = 0; ii < tokens.length; ii++) {
         String first = tokens[ii];
@@ -67,19 +73,6 @@ public class PairsPMI extends Configured implements Tool {
           context.write(PAIR, ONE);
         }
       }
-    }
-    
-    @SuppressWarnings("unused")
-    private void anotherPossibleWayOfCreatingWordPairs(String line) {
-      String[] tokens = line.split("\\s+");
-      
-      // to remove duplicates, we use HashSet
-      HashSet<String> words = new HashSet<String>();
-      for (int ii = 0; ii < tokens.length; ii++)
-        if (!tokens[ii].isEmpty()) words.add(tokens[ii]);
-      
-      Iterator<String> itr = words.iterator();
-      
     }
   }
   
@@ -190,8 +183,10 @@ public class PairsPMI extends Configured implements Tool {
        
        // Marginal count for the second event p(b)
        if (key.getRightElement().equals("*")) {
-         VALUE.set(sum);
-         context.write(key, VALUE);
+         //VALUE.set(sum);
+         
+         // Do not write marginals in the final output
+         //context.write(key, VALUE);
          marginal = sum;
        } else {
          VALUE.set(sum / marginal);

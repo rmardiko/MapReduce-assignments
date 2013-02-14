@@ -1,5 +1,9 @@
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -28,6 +32,7 @@ import cern.colt.Arrays;
 
 import edu.umd.cloud9.io.map.HMapSIW;
 import edu.umd.cloud9.io.pair.PairOfStrings;
+import edu.umd.cloud9.util.map.MapKI;
 
 public class StripesPMI extends Configured implements Tool {
   private static final Logger LOG = Logger.getLogger(StripesPMI.class);
@@ -43,7 +48,10 @@ public class StripesPMI extends Configured implements Tool {
     public void map(LongWritable key, Text value, Context context)
         throws IOException, InterruptedException {
       String line = ((Text) value).toString();
-      String[] tokens = line.split("\\s+");
+
+      Set<String> words = new HashSet<String>();
+      Collections.addAll(words, line.split("\\s+"));
+      String[] tokens = words.toArray(new String[0]);
       
       for (int ii = 0; ii < tokens.length; ii++) {
         String first = tokens[ii];
@@ -75,7 +83,7 @@ public class StripesPMI extends Configured implements Tool {
     }
   }
   
-  private static class MySecondPairsPMIMapper 
+  private static class MySecondStripesPMIMapper 
      extends Mapper<LongWritable, Text, PairOfStrings, FloatWritable> 
   {
     private final static PairOfStrings PAIR = new PairOfStrings();
@@ -112,7 +120,30 @@ public class StripesPMI extends Configured implements Tool {
     }
   }
 
-  private static class MyPairsPMICombiner extends Reducer<PairOfStrings, FloatWritable, PairOfStrings, FloatWritable> {
+  private static class MyStripesPMICombiner extends Reducer<Text, HMapSIW, Text, HMapSIW> {
+
+    // Reuse objects.
+     private final static HMapSIW ACCMAP = new HMapSIW();
+     private final static Text KEYWORD = new Text();
+
+     @Override
+     public void reduce(Text key, Iterable<HMapSIW> values, Context context)
+        throws IOException, InterruptedException {
+      
+       // Accumulate counts from different maps
+       Iterator<HMapSIW> iter = values.iterator();
+       ACCMAP.clear();
+       
+       while (iter.hasNext()) {
+         ACCMAP.plus(iter.next());
+       }
+       
+       KEYWORD.set(key.toString());
+       context.write(KEYWORD, ACCMAP);
+     }
+   }
+  
+  private static class MySecondStripesPMICombiner extends Reducer<PairOfStrings, FloatWritable, PairOfStrings, FloatWritable> {
 
     // Reuse objects.
      private final static FloatWritable SUM = new FloatWritable();
@@ -151,24 +182,38 @@ public class StripesPMI extends Configured implements Tool {
         ACCMAP.plus(iter.next());
       }
       
-      float marginal = (float) ACCMAP.get(key.toString());
+      String stringKey = key.toString();
       
-      KEYWORD.set(key.toString(), "*");
-      VALUE.set(marginal);
-      context.write(KEYWORD, VALUE);
+      float marginal = (float) ACCMAP.get(stringKey);
       
-      // exclude counts that is less than 10
+      // exclude counts that are less than 10
       if (marginal >= 10) {
+        
+        KEYWORD.set(stringKey, "*");
+        VALUE.set(marginal);
+        context.write(KEYWORD, VALUE);
+        
+        ACCMAP.remove(stringKey);
+        
         // process all entries
-        //ACCMAP.
+        for (MapKI.Entry<String> entry : ACCMAP.entrySet()) {
+          
+          // check if the count is greater than 10
+          if (entry.getValue() >= 10) {
+            
+            KEYWORD.set(stringKey, entry.getKey());
+            VALUE.set( ((float)entry.getValue()) / marginal);
+            //VALUE.set( (float) entry.getValue() );
+            
+            context.write(KEYWORD, VALUE);
+          }
+          
+        }
       }
-      
-      //context.write(key, ACCMAP);
-      
     }
   }
   
-  private static class MySecondPairsPMIReducer extends Reducer<PairOfStrings, FloatWritable, PairOfStrings, FloatWritable> {
+  private static class MySecondStripesPMIReducer extends Reducer<PairOfStrings, FloatWritable, PairOfStrings, FloatWritable> {
 
     // Reuse objects.
      private final static FloatWritable VALUE = new FloatWritable();
@@ -187,8 +232,10 @@ public class StripesPMI extends Configured implements Tool {
        
        // Marginal count for the second event p(b)
        if (key.getRightElement().equals("*")) {
-         VALUE.set(sum);
-         context.write(key, VALUE);
+         //VALUE.set(sum);
+         
+         // Do not write marginals in the final output
+         //context.write(key, VALUE);
          marginal = sum;
        } else {
          VALUE.set(sum / marginal);
@@ -261,7 +308,7 @@ public class StripesPMI extends Configured implements Tool {
   
   private boolean firstTask(String inputPath, String outputPath, int reduceTasks) throws Exception {
     
-    LOG.info("Tool: First phase of PairsPMI");
+    LOG.info("Tool: First phase of StripesPMI");
     LOG.info(" - input path: " + inputPath);
     LOG.info(" - output path: " + outputPath);
     LOG.info(" - number of reducers: " + reduceTasks);
@@ -279,11 +326,14 @@ public class StripesPMI extends Configured implements Tool {
     FileOutputFormat.setCompressOutput(job, true);
     FileOutputFormat.setOutputCompressorClass(job, GzipCodec.class);
 
+    job.setMapOutputKeyClass(Text.class);
+    job.setMapOutputValueClass(HMapSIW.class);
+    
     job.setOutputKeyClass(PairOfStrings.class);
     job.setOutputValueClass(FloatWritable.class);
 
     job.setMapperClass(MyStripesPMIMapper.class);
-    job.setCombinerClass(MyPairsPMICombiner.class);
+    job.setCombinerClass(MyStripesPMICombiner.class);
     job.setReducerClass(MyStripesPMIReducer.class);
 
     // Delete the output directory if it exists already.
@@ -295,7 +345,7 @@ public class StripesPMI extends Configured implements Tool {
   
   private boolean secondTask(String inputPath, String outputPath, int reduceTasks) throws Exception {
     
-    LOG.info("Tool: Second phase of PairsPMI");
+    LOG.info("Tool: Second phase of StripesPMI");
     LOG.info(" - input path: " + inputPath);
     LOG.info(" - output path: " + outputPath);
     LOG.info(" - number of reducers: " + reduceTasks);
@@ -313,9 +363,9 @@ public class StripesPMI extends Configured implements Tool {
     job.setOutputKeyClass(PairOfStrings.class);
     job.setOutputValueClass(FloatWritable.class);
 
-    job.setMapperClass(MySecondPairsPMIMapper.class);
-    job.setCombinerClass(MyPairsPMICombiner.class);
-    job.setReducerClass(MySecondPairsPMIReducer.class);
+    job.setMapperClass(MySecondStripesPMIMapper.class);
+    job.setCombinerClass(MySecondStripesPMICombiner.class);
+    job.setReducerClass(MySecondStripesPMIReducer.class);
 
     // Delete the output directory if it exists already.
     Path outputDir = new Path(outputPath);
