@@ -1,5 +1,4 @@
 import java.io.IOException;
-import java.util.HashSet;
 import java.util.Iterator;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -27,17 +26,18 @@ import org.apache.log4j.Logger;
 
 import cern.colt.Arrays;
 
+import edu.umd.cloud9.io.map.HMapSIW;
 import edu.umd.cloud9.io.pair.PairOfStrings;
 
 public class StripesPMI extends Configured implements Tool {
   private static final Logger LOG = Logger.getLogger(StripesPMI.class);
 
   // Another Mapper with PairOfStrings
-  private static class MyPairsPMIMapper extends Mapper<LongWritable, Text, PairOfStrings, FloatWritable> {
+  private static class MyStripesPMIMapper extends Mapper<LongWritable, Text, Text, HMapSIW> {
     
     // Reuse objects to save overhead of object creation.
-    private final static FloatWritable ONE = new FloatWritable(1);
-    private final static PairOfStrings PAIR = new PairOfStrings();
+    private static final HMapSIW MAP = new HMapSIW();
+    private static final Text KEYWORD = new Text();
     
     @Override
     public void map(LongWritable key, Text value, Context context)
@@ -49,6 +49,12 @@ public class StripesPMI extends Configured implements Tool {
         String first = tokens[ii];
         
         if (!first.isEmpty()) {
+          
+          MAP.clear();
+          
+          // add count 1 for the key, will be used for marginal count
+          MAP.increment(first);
+          
           for (int jj = 0; jj < tokens.length; jj++) {
             
             if (ii == jj) continue;
@@ -58,28 +64,14 @@ public class StripesPMI extends Configured implements Tool {
               tokens[jj] = "";
             
             if (!tokens[jj].isEmpty()) {
-              PAIR.set(first, tokens[jj]);
-              context.write(PAIR, ONE);
+              MAP.increment(tokens[jj]);
             }
           }
           
-          PAIR.set(first, "*");
-          context.write(PAIR, ONE);
+          KEYWORD.set(first);
+          context.write(KEYWORD, MAP);
         }
       }
-    }
-    
-    @SuppressWarnings("unused")
-    private void anotherPossibleWayOfCreatingWordPairs(String line) {
-      String[] tokens = line.split("\\s+");
-      
-      // to remove duplicates, we use HashSet
-      HashSet<String> words = new HashSet<String>();
-      for (int ii = 0; ii < tokens.length; ii++)
-        if (!tokens[ii].isEmpty()) words.add(tokens[ii]);
-      
-      Iterator<String> itr = words.iterator();
-      
     }
   }
   
@@ -140,34 +132,39 @@ public class StripesPMI extends Configured implements Tool {
    }
   
   //First Reducer: sums up all the counts.
-  private static class MyPairsPMIReducer extends Reducer<PairOfStrings, FloatWritable, PairOfStrings, FloatWritable> {
-
-   // Reuse objects.
+  private static class MyStripesPMIReducer extends Reducer<Text, HMapSIW, PairOfStrings, FloatWritable> {
+    
+    // Reuse objects.
+    private final static HMapSIW ACCMAP = new HMapSIW();
+    private final static PairOfStrings KEYWORD = new PairOfStrings();
     private final static FloatWritable VALUE = new FloatWritable();
-    private float marginal = 0.0f;
 
     @Override
-    public void reduce(PairOfStrings key, Iterable<FloatWritable> values, Context context)
+    public void reduce(Text key, Iterable<HMapSIW> values, Context context)
        throws IOException, InterruptedException {
-     // Sum up values.
-      Iterator<FloatWritable> iter = values.iterator();
-      float sum = 0;
+     
+      // Accumulate counts from different maps
+      Iterator<HMapSIW> iter = values.iterator();
+      ACCMAP.clear();
+      
       while (iter.hasNext()) {
-        sum += iter.next().get();
+        ACCMAP.plus(iter.next());
       }
       
-      // exclude the pairs that have less than 10 counts
-      if (sum >= 10) {
-        // Marginal count for first event p(a)
-        if (key.getRightElement().equals("*")) {
-          VALUE.set(sum);
-          context.write(key, VALUE);
-          marginal = sum;
-        } else {
-          VALUE.set(sum / marginal);
-          context.write(key, VALUE);
-        }
+      float marginal = (float) ACCMAP.get(key.toString());
+      
+      KEYWORD.set(key.toString(), "*");
+      VALUE.set(marginal);
+      context.write(KEYWORD, VALUE);
+      
+      // exclude counts that is less than 10
+      if (marginal >= 10) {
+        // process all entries
+        //ACCMAP.
       }
+      
+      //context.write(key, ACCMAP);
+      
     }
   }
   
@@ -285,9 +282,9 @@ public class StripesPMI extends Configured implements Tool {
     job.setOutputKeyClass(PairOfStrings.class);
     job.setOutputValueClass(FloatWritable.class);
 
-    job.setMapperClass(MyPairsPMIMapper.class);
+    job.setMapperClass(MyStripesPMIMapper.class);
     job.setCombinerClass(MyPairsPMICombiner.class);
-    job.setReducerClass(MyPairsPMIReducer.class);
+    job.setReducerClass(MyStripesPMIReducer.class);
 
     // Delete the output directory if it exists already.
     Path outputDir = new Path(outputPath);
