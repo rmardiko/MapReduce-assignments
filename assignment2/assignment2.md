@@ -14,9 +14,9 @@ The solution for StripesPMI also has two jobs. The first job counts word pairs b
 4. The pair (abednego, meshach) has the highest PMI. Because the words abednego and meshach frequently appear together in a document, the PMI score is high even if they don't appear many times in the entire dataset. The names abednego and meshach are mentioned in a specific story in the Bible.
 
 5. Pair --  PMI Value
-(cloud, tabernacle) 4.072988E-4
-(cloud, glory) 1.9159757E-4
-(cloud, fire) 1.6271407E-4
-(love, hate) 8.410429E-5
-(love, hermia) 4.8691956E-5
-(love, commandments) 4.45258E-5
+(cloud, tabernacle) -7.805963504236849
+(cloud, glory) -8.56011335651833
+(cloud, fire) -8.723516046759277
+(love, hate) -9.38345294698951
+(love, hermia) -9.929996712342444
+(love, commandments) -10.019441737740376
