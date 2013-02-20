@@ -20,3 +20,15 @@ The solution for StripesPMI also has two jobs. The first job counts word pairs b
 (love, hate) -9.38345294698951
 (love, hermia) -9.929996712342444
 (love, commandments) -10.019441737740376
+
+Grading
+=======
+
+Everything looks correct except for Q6: the pairs are correct, but the
+values seem off. PMI should be positive, right? -1
+
+I was able to successfully build and run your code.
+
+Score: 34/35
+
+-Jimmy
