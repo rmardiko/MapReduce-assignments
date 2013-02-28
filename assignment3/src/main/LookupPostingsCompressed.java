@@ -181,9 +181,7 @@ public class LookupPostingsCompressed extends Configured implements Tool {
       
       leftValue = prev + left;
       
-      //if (leftValue < 0) System.out.println("Something wrong");
-      
-      qResult.add(new PairOfInts(left, right)); // restore the original value
+      qResult.add(new PairOfInts(leftValue, right)); // restore the original value
       count++; prev = leftValue;
     }
     
