@@ -23,13 +23,10 @@ import java.io.DataInputStream;
 import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import org.apache.hadoop.io.FloatWritable;
-import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Writable;
 
 import edu.umd.cloud9.io.array.ArrayListOfIntsWritable;
 import edu.umd.cloud9.io.array.ArrayOfFloatsWritable;
-import edu.umd.cloud9.io.map.HashMapWritable;
 
 /**
  * Representation of a graph node for PageRank. 
@@ -57,21 +54,13 @@ public class PageRankNode implements Writable {
 	private float pagerank;
 	private ArrayListOfIntsWritable adjacencyList;
 	
-	private IntWritable keyTemp;
 	// extension of the original code, to accomodate multi-source
 	// personalized page rank
 	private int numSources;
-	private HashMapWritable<IntWritable, FloatWritable> pagerankValues;
-//	private ArrayOfFloatsWritable pagerankVals;
-//	private ArrayListOfIntsWritable sources;
+	private ArrayOfFloatsWritable pagerankVals;
+	private ArrayListOfIntsWritable sources;
 
-	public PageRankNode() {
-	  pagerankValues = new HashMapWritable<IntWritable, FloatWritable>();
-//	  pagerankVals = new ArrayOfFloatsWritable();
-//	  sources = new ArrayListOfIntsWritable();
-	  
-	  keyTemp = new IntWritable();
-	}
+	public PageRankNode() {}
 
 	public float getPageRank() {
 		return pagerank;
@@ -82,32 +71,25 @@ public class PageRankNode implements Writable {
 	}
 	
 	public float getPersonalizedPageRank(int sourceId) {
-	  keyTemp.set(sourceId);
-	  return pagerankValues.get(keyTemp).get();
-	}
-	
-	public HashMapWritable<IntWritable, FloatWritable> getPagerankValues() {
-	  return this.pagerankValues;
+	  
+	  return pagerankVals.get(getSourceIndex(sourceId));
 	}
 	
 	public void setPersonalizedPageRank(int sourceId, float value) {
-	  
-	  pagerankValues.put(new IntWritable(sourceId), new FloatWritable(value));
-	  
-	 // pagerankVals.set(getSourceIndex(sourceId), value);
+	  pagerankVals.set(getSourceIndex(sourceId), value);
 	}
 	
-//	private int getSourceIndex(int source) {
-//	  boolean go = true; int index = -1;
-//	  for (int ii = 0; ii < sources.size() && go; ii++) {
-//	    if (sources.get(ii) == source) {
-//	      index = ii;
-//	      go = false;
-//	    }
-//	  }
-//	  
-//	  return index;
-//	}
+	private int getSourceIndex(int source) {
+	  boolean go = true; int index = -1;
+	  for (int ii = 0; ii < sources.size() && go; ii++) {
+	    if (sources.get(ii) == source) {
+	      index = ii;
+	      go = false;
+	    }
+	  }
+	  
+	  return index;
+	}
 
 	public int getNodeId() {
 		return nodeid;
@@ -143,11 +125,19 @@ public class PageRankNode implements Writable {
 
   public void setSourceIds(ArrayListOfIntsWritable sourceIds) {
     
-    for (int e : sourceIds) {
-      pagerankValues.put(new IntWritable(e), new FloatWritable(Float.NEGATIVE_INFINITY));
+    sources = sourceIds;
+    
+    if (pagerankVals == null) {
+      pagerankVals = new ArrayOfFloatsWritable();
+      pagerankVals.setArray(new float[sourceIds.size()]);
     }
     
-    this.numSources = pagerankValues.size();
+    
+    for (int e : sourceIds) {
+      pagerankVals.set(getSourceIndex(e),Float.NEGATIVE_INFINITY);
+    }
+    
+    this.numSources = sources.size();
   }
 
   /**
@@ -163,17 +153,26 @@ public class PageRankNode implements Writable {
 
 		if (type.equals(Type.Mass)) {
 			pagerank = in.readFloat();
-			pagerankValues.readFields(in);
+			
+			sources = new ArrayListOfIntsWritable();
+      sources.readFields(in);
+      
+      pagerankVals = new ArrayOfFloatsWritable();
+      pagerankVals.readFields(in);
+      
 			return;
 		}
 
 		if (type.equals(Type.Complete)) {
 			pagerank = in.readFloat();
 			
-			pagerankValues = new HashMapWritable<IntWritable, FloatWritable>();
-	    pagerankValues.readFields(in);
+			sources = new ArrayListOfIntsWritable();
+			sources.readFields(in);
+			
+			pagerankVals = new ArrayOfFloatsWritable();
+			pagerankVals.readFields(in);
 	    
-	    numSources = pagerankValues.size();
+	    numSources = pagerankVals.size();
 		}
 
 		adjacencyList = new ArrayListOfIntsWritable();
@@ -192,13 +191,16 @@ public class PageRankNode implements Writable {
 
 		if (type.equals(Type.Mass)) {
 			out.writeFloat(pagerank);
-			pagerankValues.write(out);
+			sources.write(out);
+			pagerankVals.write(out);
+			
 			return;
 		}
 
 		if (type.equals(Type.Complete)) {
 			out.writeFloat(pagerank);
-			pagerankValues.write(out);
+			sources.write(out);
+			pagerankVals.write(out);
 		}
 		
 		adjacencyList.write(out);
@@ -206,8 +208,8 @@ public class PageRankNode implements Writable {
 
 	@Override
 	public String toString() {
-		return String.format("{%d %.4f %s %s}",
-				nodeid, pagerank, (pagerankValues == null ? "[]" : pagerankValues.toString()),
+		return String.format("{%d %.4f %s %s %s}",
+				nodeid, pagerank, sources, (pagerankVals == null ? "[]" : pagerankVals.toString()),
 				(adjacencyList == null ? "[]" : adjacencyList.toString(10)));
 	}
 

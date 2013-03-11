@@ -5,6 +5,7 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.junit.Test;
 
+import edu.umd.cloud9.io.array.ArrayOfFloatsWritable;
 import edu.umd.cloud9.io.map.HashMapWritable;
 
 public class SampleTest {
@@ -28,10 +29,12 @@ public class SampleTest {
   
   @Test
   public void test4() {
-    HashMapWritable<IntWritable, FloatWritable> mass = new HashMapWritable<IntWritable, FloatWritable>();
-    mass.put(new IntWritable(1), new FloatWritable(0.001f));
-    mass.put(new IntWritable(2), new FloatWritable(0.002f));
-    mass.put(new IntWritable(3), new FloatWritable(0.003f));
+//    HashMapWritable<IntWritable, FloatWritable> mass = new HashMapWritable<IntWritable, FloatWritable>();
+//    mass.put(new IntWritable(1), new FloatWritable(0.001f));
+//    mass.put(new IntWritable(2), new FloatWritable(0.002f));
+//    mass.put(new IntWritable(3), new FloatWritable(0.003f));
+    float[] a = {0.05f, 2.56f, 9.876f};
+    ArrayOfFloatsWritable mass = new ArrayOfFloatsWritable(a); 
     
     System.out.println(mass);
   }
