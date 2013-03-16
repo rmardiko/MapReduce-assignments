@@ -23,3 +23,15 @@ Source: 9300650
 0.01511 9785148  
 0.01511 11890488  
 0.01511 8846237  
+
+
+Grading
+=======
+
+Everything looks correct and but in order to get your code to run I
+had to manually change `ivy/ivy.xml` to upgrade to CDH 4.2.0 (-1
+point). Otherwise, good job!
+
+Score: 34/35
+
+-Jimmy
