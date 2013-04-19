@@ -46,7 +46,7 @@ public class ExtractHourlyCountsEgypt extends Configured implements Tool {
         
         if(!tokens[3].isEmpty()) {
           String tweet = tokens[3].toLowerCase(Locale.ENGLISH);
-          if (tweet.contains("egypt")) {
+          if (tweet.contains("egypt") || tweet.contains("cairo")) {
             WORD.set(dateWrite.format(dateRead.parse(tokens[1])));
             context.write(WORD, ONE);
           }
