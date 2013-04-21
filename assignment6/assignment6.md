@@ -14,3 +14,14 @@ s = group r by (mymonth,myday,myhour);
 t = foreach s generate group as thetime, COUNT(r) as count; 
  
 dump t; 
+
+
+Grading
+=======
+
+There's a bug somewhere that's not making the graphs come out correctly...
+I'll send around my solutions I have so you can check.
+
+Score: 20/25
+
+-Jimmy
